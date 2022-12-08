@@ -32,9 +32,10 @@ from dotenv import load_dotenv
 load_dotenv()
 import os
 
-PREP_TWEETS_PATH = os.environ.get('PREP_TWEETS_PATH')
-MODEL_TWEETS_PATH = os.environ.get('MODEL_TWEETS_PATH')
-
+PREP_TWEETS_PATH = r'%s' % os.environ.get('PREP_TWEETS_PATH')
+MODEL_TWEETS_PATH = r'%s' % os.environ.get('MODEL_TWEETS_PATH')
+print(PREP_TWEETS_PATH)
+print(MODEL_TWEETS_PATH)
 
 def simple_tokenize_no_label(orig_tokens, tokenizer, max_seq_length):
     """
@@ -185,7 +186,10 @@ def mainPredict():
     #input_dir = r"C:\Users\12017\OneDrive\Documents\MQP_ML\tweet-fid-demo\pipeline-demo\tmp"
     #path = os.path.join(input_dir, 'tweets_*.txt_chunk-*.csv')
     path = os.path.join(PREP_TWEETS_PATH)
+    #path = os.path.join(r'C:\Users\12017\OneDrive\Documents\MQP_ML\tweet-fid-demo\pipeline-demo\tmp\prep_tweets.csv')
     file_list = glob.glob(path)
+    print("path", path)
+    print(file_list)
     #file_list = pd.read_csv('prep_tweets.csv')
     #print(file_list)
 
@@ -195,6 +199,7 @@ def mainPredict():
       bert_model = "roberta-base"
       model_type = "bertweet-multi-crf"
       model_dir = MODEL_TWEETS_PATH
+      print(model_dir)
 
       task_type = 'entity_detection'
       n_epochs = 10
@@ -266,16 +271,23 @@ def mainPredict():
       us_data['sentence_prediction_prob'] = test_s_p_pred
       pos_count = us_data['sentence_prediction'].sum()
 
+      print(f"Total Sentences: {us_data.shape[0]}, Predicted Related Sentences: {pos_count}")
+      
+      us_data.to_csv("predicted_all_tweets_" + str(fcount) + ".csv", index=False)
 
       us_data = us_data.loc[us_data['sentence_prediction'] == 1]
-      print(us_data)
+      #print(us_data)
+
+     
 
       us_data.to_csv("predicted_tweets_" + str(fcount) + ".csv", index=False)
       fcount += 1
 
-      print(f"Total Sentences: {us_data.shape[0]}, Predicted Related Sentences: {pos_count}")
+      
       
 
     
 if __name__ == '__main__':
+    
     mainPredict()
+    

@@ -2,3 +2,4 @@ __pycache__/
 pipeline-demo/output/
 pipeline-demo/tmp/
 pipeline-demo/.env
+.env

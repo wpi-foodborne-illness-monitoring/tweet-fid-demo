@@ -26,6 +26,15 @@ import model_weighted_roberta
 import utils
 from torchcrf import CRF
 
+from dotenv import load_dotenv
+
+# setup environment variables
+load_dotenv()
+import os
+
+PREP_TWEETS_PATH = os.environ.get('PREP_TWEETS_PATH')
+MODEL_TWEETS_PATH = os.environ.get('MODEL_TWEETS_PATH')
+
 
 def simple_tokenize_no_label(orig_tokens, tokenizer, max_seq_length):
     """
@@ -175,7 +184,7 @@ def load_model(model_type, model_path, config):
 def mainPredict():
     #input_dir = r"C:\Users\12017\OneDrive\Documents\MQP_ML\tweet-fid-demo\pipeline-demo\tmp"
     #path = os.path.join(input_dir, 'tweets_*.txt_chunk-*.csv')
-    path = os.path.join(r'C:\Users\12017\OneDrive\Documents\MQP_ML\tweet-fid-demo\pipeline-demo\tmp\prep_tweets.csv')
+    path = os.path.join(PREP_TWEETS_PATH)
     file_list = glob.glob(path)
     #file_list = pd.read_csv('prep_tweets.csv')
     #print(file_list)
@@ -185,7 +194,7 @@ def mainPredict():
     for file_name in file_list:
       bert_model = "roberta-base"
       model_type = "bertweet-multi-crf"
-      model_dir = r"C:\Users\12017\OneDrive\Documents\MQP_ML\pytorch_model.bin"
+      model_dir = MODEL_TWEETS_PATH
 
       task_type = 'entity_detection'
       n_epochs = 10

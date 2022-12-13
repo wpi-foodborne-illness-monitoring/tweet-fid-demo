@@ -24,6 +24,7 @@ import glob
 import os
 import model_weighted_roberta
 import utils
+import pymysql
 
 
 def simple_tokenize_no_label(orig_tokens, tokenizer, max_seq_length):
@@ -256,6 +257,23 @@ def mainPredict():
       pos_count = us_data['sentence_prediction'].sum()
 
       us_data.to_csv("output/predicted_tweets_" + str(fcount) + ".csv", index=False)
+
+      #adding connection to database
+      connection = pymysql.connect(host='usda-foodpoisoning.wpi.edu',
+                             user='dbadmin',
+                             password='8x6Hh!Jsr#tMGh$G',
+                             db='MQP22')
+      
+      cursor = connection.cursor()
+
+      cols = "`,`".join([str(i) for i in us_data.columns.tolist()])
+      for i,row in us_data.iterrows():
+        sql = "INSERT INTO `book_details` (`" +cols + "`) VALUES (" + "%s,"*(len(row)-1) + "%s)"
+        cursor.execute(sql, tuple(row))
+
+        connection.commit()
+    
+
       fcount += 1
 
       print(f"Total Sentences: {us_data.shape[0]}, Predicted Related Sentences: {pos_count}")

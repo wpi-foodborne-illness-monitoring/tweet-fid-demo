@@ -27,8 +27,8 @@ import utils
 from torchcrf import CRF
 from nltk.tokenize import word_tokenize
 from sqlalchemy.engine import create_engine
-
 from dotenv import load_dotenv
+import time
 
 # setup environment variables
 load_dotenv()
@@ -213,17 +213,19 @@ def create_tokens(text):
 ### Main
 def mainPredict():
 
+    #retrieve tweets from temporary table in database
     conn_string = 'postgresql://dbadmin:8x6Hh!Jsr#tMGh$G@usda-foodpoisoning.wpi.edu:5432/MQP22'
     db = create_engine(conn_string)
     retrieve_conn = db.connect()
-    query = pd.read_sql("select * from \"test_tweets\"", db)
+    query = pd.read_sql("select * from \"temp_tweets\"", db)
     us_data2 = pd.DataFrame(query, columns = ['id','author_id','tweet_text','created_at','geo'])
     us_data2['tweet_token'] = us_data2['tweet_text'].map(lambda text: create_tokens(text))
 
+    #converting dataframe to csv to input into model
     us_data2.to_csv('prep_tweets.csv')
     us_data = pd.read_csv('prep_tweets.csv')
 
-
+    #running machine learning model on tweets
     bert_model = "roberta-base"
     model_type = "bertweet-multi-crf"
     model_dir = MODEL_TWEETS_PATH
@@ -302,14 +304,25 @@ def mainPredict():
 
     us_data = us_data.loc[us_data['sentence_prediction'] == 1]
 
+    #sending tweets with predictions to table in database
+    conn_string = 'postgresql://dbadmin:8x6Hh!Jsr#tMGh$G@usda-foodpoisoning.wpi.edu:5432/MQP22'
+    db = create_engine(conn_string)
+    conn = db.connect()
+    us_data.to_sql('final_tweets', con=conn, if_exists='append', index=False)
+    conn = psycopg2.connect(conn_string)
+    conn.autocommit = True
+    cursor = conn.cursor()
     
-    
+    #deleting tweets from temporary table in database# create a new cursor
+    cursor.execute("DELETE FROM temp_tweets")
+    conn.commit()
+    cursor.close()
 
-      
-      
 
-    
+ 
 if __name__ == '__main__':
-    
+    start = time.time() 
     mainPredict()
+    end = time.time()
+    print('Elapsed time: ', end-start)
     

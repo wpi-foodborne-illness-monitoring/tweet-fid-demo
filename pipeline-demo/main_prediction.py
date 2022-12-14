@@ -25,6 +25,8 @@ import os
 import model_weighted_roberta
 import utils
 from torchcrf import CRF
+from nltk.tokenize import word_tokenize
+from sqlalchemy.engine import create_engine
 
 from dotenv import load_dotenv
 
@@ -179,109 +181,129 @@ def load_model(model_type, model_path, config):
         model = None
 
     return model
+
+
+def normalize(token):
+  lowercased_token = token.lower()
+  if token.startswith("@") and len(token)>1:
+      return "@USER"
+  elif len(token) >=3:
+      if token[1] == "@":
+          return token[0]+"@USER"
+  if lowercased_token.startswith("http") or lowercased_token.startswith("www"):
+      return "HTTPURL"
+  for i in ['.com', '.edu', '.gov']:
+      if i in lowercased_token:
+          return "HTTPURL"
+  else:
+      return token
+
+def create_tokens(text):
+  text = text.replace('\n',' ').replace('\r',' ').replace("’", "'").replace("…", "...")
+  tokens = text.split(' ')
+  tokens = [normalize(token) for token in tokens]
+  new_text = ' '.join(tokens)
+  #temp = list(filter(None, re.split('([,.!?:()[\]"\s+])', new_text)))
+  #tweet_split = list(filter(str.strip, temp))
+  #fulltext = " ".join 
+  new_text = new_text.split(' ')
+  return new_text
     
     
 ### Main
 def mainPredict():
-    #input_dir = r"C:\Users\12017\OneDrive\Documents\MQP_ML\tweet-fid-demo\pipeline-demo\tmp"
-    #path = os.path.join(input_dir, 'tweets_*.txt_chunk-*.csv')
-    path = os.path.join(PREP_TWEETS_PATH)
-    #path = os.path.join(r'C:\Users\12017\OneDrive\Documents\MQP_ML\tweet-fid-demo\pipeline-demo\tmp\prep_tweets.csv')
-    file_list = glob.glob(path)
-    print("path", path)
-    print(file_list)
-    #file_list = pd.read_csv('prep_tweets.csv')
-    #print(file_list)
 
-    fcount = 0
+    conn_string = 'postgresql://dbadmin:8x6Hh!Jsr#tMGh$G@usda-foodpoisoning.wpi.edu:5432/MQP22'
+    db = create_engine(conn_string)
+    retrieve_conn = db.connect()
+    query = pd.read_sql("select * from \"test_tweets\"", db)
+    us_data2 = pd.DataFrame(query, columns = ['id','author_id','tweet_text','created_at','geo'])
+    us_data2['tweet_token'] = us_data2['tweet_text'].map(lambda text: create_tokens(text))
 
-    for file_name in file_list:
-      bert_model = "roberta-base"
-      model_type = "bertweet-multi-crf"
-      model_dir = MODEL_TWEETS_PATH
-      print(model_dir)
+    us_data2.to_csv('prep_tweets.csv')
+    us_data = pd.read_csv('prep_tweets.csv')
 
-      task_type = 'entity_detection'
-      n_epochs = 10
-      max_length = 128
-      rnn_hidden_size = 384
-      batch_size = 500
-      eval_batch_size = 500
-      test_batch_size = 500
-      seed = 42
-      learning_rate = 1e-5
-      data = 'wnut_16'
-      log_dir = './'
-      save_model = False
-      early_stop = False
-      assign_token_weight = False
-      assign_seq_weight = False
-      token_lambda = 10
-      data_file = "tweet_fd.p"
-      label_map = "label_map.json"
-      performance_file = "all_test_performance.txt"
 
-      assert model_type.startswith('bertweet')
-      assert task_type in ['entity_detection', 'relevant_entity_detection', 'entity_relevance_classification']
+    bert_model = "roberta-base"
+    model_type = "bertweet-multi-crf"
+    model_dir = MODEL_TWEETS_PATH
+    print(model_dir)
 
-      log_directory = "./" 
-      log_filename = 'log.txt'
-        
-      logname = log_directory + log_filename
-      
-      us_data = pd.read_csv(file_name)
+    task_type = 'entity_detection'
+    n_epochs = 10
+    max_length = 128
+    rnn_hidden_size = 384
+    batch_size = 500
+    eval_batch_size = 500
+    test_batch_size = 500
+    seed = 42
+    learning_rate = 1e-5
+    data = 'wnut_16'
+    log_dir = './'
+    save_model = False
+    early_stop = False
+    assign_token_weight = False
+    assign_seq_weight = False
+    token_lambda = 10
+    data_file = "tweet_fd.p"
+    label_map = "label_map.json"
+    performance_file = "all_test_performance.txt"
 
-      us_data.dropna(subset=['tweet_token'],inplace=True)
-      us_data.reset_index(drop=True,inplace=True)
-      print(f"Total Sentences: {us_data.shape[0]}")
-      X_test_raw = us_data['tweet_token'].apply(literal_eval)
-      
-      tokenizer = AutoTokenizer.from_pretrained(bert_model, normalization=True)
-      label_map = {"O": 0, "B-food": 1, "I-food": 2, "B-symptom": 3, "I-symptom": 4, "B-loc": 5, "I-loc": 6, "B-other": 7, "I-other": 8}
-      label_map_switch = {label_map[k]: k for k in label_map}
-      labels = list(label_map.keys())
+    assert model_type.startswith('bertweet')
+    assert task_type in ['entity_detection', 'relevant_entity_detection', 'entity_relevance_classification']
 
-      device = torch.device("cpu")
-      
-      config = RobertaConfig.from_pretrained(bert_model)
-      config.update({'num_token_labels': len(labels), 'num_labels': 2,
-                    'token_label_map': label_map,})
-      
-      model = load_model(model_type, model_dir, config)
-      model = model.to(device)
+    log_directory = "./" 
+    log_filename = 'log.txt'
+    
+    logname = log_directory + log_filename
+    
 
-      X_test, masks_test, token_label_test  = tokenize_with_new_mask_no_label(X_test_raw, max_length, tokenizer)
-      num_batches = np.int(np.ceil(X_test.shape[0] / test_batch_size))
-      test_batch_generator = multi_batch_seq_predict_generator(X_test, token_label_test, masks_test, test_batch_size)
+    us_data.dropna(subset=['tweet_token'],inplace=True)
+    us_data.reset_index(drop=True,inplace=True)
+    print(f"Total Sentences: {us_data.shape[0]}")
+    X_test_raw = us_data['tweet_token'].apply(literal_eval)
+    
+    tokenizer = AutoTokenizer.from_pretrained(bert_model, normalization=True)
+    label_map = {"O": 0, "B-food": 1, "I-food": 2, "B-symptom": 3, "I-symptom": 4, "B-loc": 5, "I-loc": 6, "B-other": 7, "I-other": 8}
+    label_map_switch = {label_map[k]: k for k in label_map}
+    labels = list(label_map.keys())
 
-      a = time.time()
-      test_t_pred, test_s_pred, preds_list = predict(model, test_batch_generator, num_batches, device,
-                                                    token_lambda, label_map)
-      b = time.time()
-      print(f"Prediction time is {b-a}s")
-      
-      if type(model) is not model_weighted_roberta.RobertaForTokenAndSequenceClassificationWithCRF:
-          preds_list, _ = align_predictions(test_t_pred, token_label_test, label_map)
+    device = torch.device("cpu")
+    
+    config = RobertaConfig.from_pretrained(bert_model)
+    config.update({'num_token_labels': len(labels), 'num_labels': 2,
+                'token_label_map': label_map,})
+    
+    model = load_model(model_type, model_dir, config)
+    model = model.to(device)
 
-      test_s_l_pred, test_s_p_pred = get_sentence_prediction(test_s_pred)
-      preds_list = pd.Series(preds_list)
-      preds_list = preds_list.apply(lambda x: ','.join([label_map_switch[i] for i in x]))
-      us_data['token_prediction'] = preds_list
-      us_data['sentence_prediction']= test_s_l_pred
-      us_data['sentence_prediction_prob'] = test_s_p_pred
-      pos_count = us_data['sentence_prediction'].sum()
+    X_test, masks_test, token_label_test  = tokenize_with_new_mask_no_label(X_test_raw, max_length, tokenizer)
+    num_batches = np.int(np.ceil(X_test.shape[0] / test_batch_size))
+    test_batch_generator = multi_batch_seq_predict_generator(X_test, token_label_test, masks_test, test_batch_size)
 
-      print(f"Total Sentences: {us_data.shape[0]}, Predicted Related Sentences: {pos_count}")
-      
-      us_data.to_csv("predicted_all_tweets_" + str(fcount) + ".csv", index=False)
+    a = time.time()
+    test_t_pred, test_s_pred, preds_list = predict(model, test_batch_generator, num_batches, device,
+                                                token_lambda, label_map)
+    b = time.time()
+    print(f"Prediction time is {b-a}s")
+    
+    if type(model) is not model_weighted_roberta.RobertaForTokenAndSequenceClassificationWithCRF:
+        preds_list, _ = align_predictions(test_t_pred, token_label_test, label_map)
 
-      us_data = us_data.loc[us_data['sentence_prediction'] == 1]
-      #print(us_data)
+    test_s_l_pred, test_s_p_pred = get_sentence_prediction(test_s_pred)
+    preds_list = pd.Series(preds_list)
+    preds_list = preds_list.apply(lambda x: ','.join([label_map_switch[i] for i in x]))
+    us_data['token_prediction'] = preds_list
+    us_data['sentence_prediction']= test_s_l_pred
+    us_data['sentence_prediction_prob'] = test_s_p_pred
+    pos_count = us_data['sentence_prediction'].sum()
 
-     
+    print(f"Total Sentences: {us_data.shape[0]}, Predicted Related Sentences: {pos_count}")
 
-      us_data.to_csv("predicted_tweets_" + str(fcount) + ".csv", index=False)
-      fcount += 1
+    us_data = us_data.loc[us_data['sentence_prediction'] == 1]
+
+    
+    
 
       
       

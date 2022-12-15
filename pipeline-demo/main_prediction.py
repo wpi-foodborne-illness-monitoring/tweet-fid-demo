@@ -220,16 +220,18 @@ def mainPredict():
     query = pd.read_sql("select * from \"temp_tweets\"", db)
     us_data2 = pd.DataFrame(query, columns = ['id','author_id','tweet_text','created_at','geo'])
     us_data2['tweet_token'] = us_data2['tweet_text'].map(lambda text: create_tokens(text))
+    print(us_data2)
 
     #converting dataframe to csv to input into model
     us_data2.to_csv('prep_tweets.csv')
-    us_data = pd.read_csv('prep_tweets.csv')
+    us_data = pd.read_csv('prep_tweets.csv', index=False)
+    
 
     #running machine learning model on tweets
     bert_model = "roberta-base"
     model_type = "bertweet-multi-crf"
     model_dir = MODEL_TWEETS_PATH
-    print(model_dir)
+    #print(model_dir)
 
     task_type = 'entity_detection'
     n_epochs = 10
@@ -313,7 +315,7 @@ def mainPredict():
     conn.autocommit = True
     cursor = conn.cursor()
     
-    #deleting tweets from temporary table in database# create a new cursor
+    #deleting tweets from temporary table in database
     cursor.execute("DELETE FROM temp_tweets")
     conn.commit()
     cursor.close()

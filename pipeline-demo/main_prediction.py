@@ -29,6 +29,7 @@ from nltk.tokenize import word_tokenize
 from sqlalchemy.engine import create_engine
 from dotenv import load_dotenv
 import time
+import psycopg2
 
 # setup environment variables
 load_dotenv()
@@ -223,9 +224,9 @@ def mainPredict():
     print(us_data2)
 
     #converting dataframe to csv to input into model
-    us_data2.to_csv('prep_tweets.csv')
-    us_data = pd.read_csv('prep_tweets.csv', index=False)
-    
+    us_data2.to_csv('prep_tweets.csv', index=False)
+    us_data = pd.read_csv('prep_tweets.csv')
+
 
     #running machine learning model on tweets
     bert_model = "roberta-base"
@@ -305,6 +306,7 @@ def mainPredict():
     print(f"Total Sentences: {us_data.shape[0]}, Predicted Related Sentences: {pos_count}")
 
     us_data = us_data.loc[us_data['sentence_prediction'] == 1]
+    print(us_data)
 
     #sending tweets with predictions to table in database
     conn_string = 'postgresql://dbadmin:8x6Hh!Jsr#tMGh$G@usda-foodpoisoning.wpi.edu:5432/MQP22'

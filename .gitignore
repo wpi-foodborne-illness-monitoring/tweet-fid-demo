@@ -3,3 +3,4 @@ pipeline-demo/output/
 pipeline-demo/tmp/
 pipeline-demo/.env
 .env
+pytorch_model.bin
